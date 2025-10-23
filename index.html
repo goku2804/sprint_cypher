@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Cipher Sprint — Binary Decoding Challenge</title>
+<style>
+/* your existing styles (unchanged) */
+body { background-color: #0b0c10; color: #66fcf1; font-family: 'Poppins', sans-serif; text-align: center; padding: 20px; }
+.container { max-width: 700px; margin: auto; background: #1f2833; border-radius: 15px; padding: 30px; box-shadow: 0 0 20px #45a29e; }
+h1 { color: #45a29e; }
+.timer { color: #ff7777; font-size: 18px; margin: 10px; }
+input, button, select { padding: 10px; border-radius: 10px; font-size: 16px; border: none; margin: 10px; }
+button { background: #45a29e; color: white; cursor: pointer; }
+button:hover { background: #66fcf1; color: black; }
+.hidden { display: none; }
+.option-btn { display: block; margin: 8px auto; width: 60%; background-color: #1f4068; color: white; }
+.option-btn:hover { background-color: #45a29e; }
+</style>
+</head>
+<body>
+  
+<div class="container">
+  <h1>🧠 Cipher Sprint — Binary Decoding Challenge</h1>
+
+  <div id="start-screen">
+    <p>Enter your details to begin the challenge:</p>
+
+    <input id="username" placeholder="Your Name" required /><br>
+    <input id="phone" type="tel" placeholder="Phone Number" pattern="[0-9]{10}" maxlength="10" required /><br>
+    <select id="semester" required>
+      <option value="" disabled selected>Select Semester</option>
+      <option>1st</option><option>2nd</option><option>3rd</option><option>4th</option>
+      <option>5th</option><option>6th</option><option>7th</option><option>8th</option>
+    </select><br>
+    <input id="class" placeholder="Class (e.g., CSE-A)" required /><br>
+
+    <button onclick="startChallenge()">Start Challenge</button>
+  </div>
+
+  <div id="quiz-screen" class="hidden">
+    <h3 id="round-title"></h3>
+    <div class="timer">⏱ Time Left: <span id="time">--:--</span></div>
+    <div id="question-box"></div>
+    <button id="prev-btn" style="margin-right:10px;" onclick="prevQuestion()">Previous</button>
+    <button id="next-btn" onclick="nextQuestion()">Next</button>
+  </div>
+
+  <div id="result-screen" class="hidden">
+    <h2 id="result-title"></h2>
+    <p id="result-msg"></p>
+  </div>
+</div>
+
+<!-- ===== FIREBASE (Realtime Database) BOOTSTRAP (module) ===== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+  import { getDatabase, ref, push, set, onChildAdded, onValue } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-analytics.js";
+
+  // ✅ Your Firebase configuration
+  const firebaseConfig = {
+    apiKey: "AIzaSyDZ_5BVetEuf6HmsdvFEmK5jUiiN9qalq0",
+    authDomain: "cipher-sprint.firebaseapp.com",
+    databaseURL: "https://cipher-sprint-default-rtdb.firebaseio.com",
+    projectId: "cipher-sprint",
+    storageBucket: "cipher-sprint.firebasestorage.app",
+    messagingSenderId: "191536837355",
+    appId: "1:191536837355:web:aa8fad31558205826804ae",
+    measurementId: "G-N85P9F1YR2"
+  };
+
+  // ✅ Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getDatabase(app);
+
+  // ✅ Function to save result to Firebase
+  window.saveResultToFirebase = async function(resultObj) {
+    try {
+      const resultsRef = ref(db, "results");
+      const newRef = push(resultsRef);
+      await set(newRef, resultObj);
+      console.log("✅ Saved to Firebase:", resultObj);
+    } catch (err) {
+      console.error("❌ Firebase save error:", err);
+    }
+  };
+
+  // (optional) expose references for admin/leaderboard use later
+  window.firebaseDB = db;
+  window.firebaseRefs = { ref, onChildAdded, onValue };
+</script>
+
+
+<script>
+// ======== QUESTION DATA ========== 
+const questions = { 
+  easy: [ 
+    { q: "ASCII of lowercase 'g' is:", options: ["105", "103", "101","108"], a: "103" },
+    { q: "What does ASCII '113' represent?", options: ["H", "h", "q", "Q"], a: "q" },
+    { q: "ASCII value of capital 'S' is:", options: ["87", "88", "80", "83"], a: "83" },
+    { q: "ASCII of lowercase 'm' is:", options: ["109", "103", "101","108"], a: "109" },
+    { q: "What does ASCII '79' represent?", options: ["O", "L", "D", "V"], a: "O" },
+    { q: "ASCII value of 'IC'  is:", options: ["73 64", "70 68", "73 67", "71 60"], a: "73 67" },
+    { q: "ASCII of lowercase 'x' is:", options: ["121", "120", "125", "127"], a: "120" },
+    { q: "What does ASCII '75' represent?", options: ["L", "N", "K", "P"], a: "K" },
+  ], 
+
+  medium: [
+    { q: "ASCII value of word 'CPU' is:", options: ["61 80 70", "65 85 80", "67 80 85", "63 81 78"], a: "67 80 85" },
+    { q: "ASCII value of word 'WWW' is:", options: ["87 87 87", "88 88 88", "89 89 89", "85 85 85"], a: "87 87 87" },
+    { q: "ASCII value of word 'Rom' is:", options: ["82 111 109", "81 113 109", "80 111 113", "82 109 111"], a: "82 111 109" },
+    { q: "ASCII value of word 'uRL' is:", options: ["114 81 76", "100 87 75", "112 80 74", "117 82 76"], a: "117 82 76" },
+    { q: "ASCII value of word 'GPU' is:", options: ["70 80 87", "71 80 85", "71 80 87", "70 82 85"], a: "71 80 85" },
+    { q: "ASCII value of word 'Java' is:", options: ["78 96 118 96", "75 95 119 95", "74 97 118 97", "76 93 119 93"], a: "74 97 118 97" },
+    { q: "ASCII value of word 'IoT' is:", options: ["73 111 85", "77 111 86", "72 111 82", "73 111 84"], a: "73 111 84" },
+    { q: "ASCII value of word 'DNS' is:", options: ["68 78 83", "67 77 82", "68 78 85", "67 77 87"], a: "68 78 83" },
+  ],
+
+  hard: [ 
+    { q: "Decode 67 97 99 104 101", a: "Cache" }, 
+    { q: "ASCII value of word 'Query' is:", options: ["81 117 101 113 121", "81 117 101 115 122", "81 117 101 114 121", "81 117 101 114 122"], a: "81 117 101 114 121" },
+    { q: "ASCII value of word 'Board' is:", a: "66 111 97 114 100"}, 
+    { q: "Give binary for 'VPN'", a: "01010110 01010000 01001110" }, 
+    { q: "ASCII value of word 'Machine Code' is:", options: ["74 97 99 104 105 110 102 32 67 111 100 101", "77 97 99 104 105 110 101 32 67 111 100 101", "70 97 99 102 105 110 101 32 67 111 100 101", "77 97 99 104 106 110 101 32 67 111 100 101"], a: "77 97 99 104 105 110 101 32 67 111 100 101" }, 
+    { q: "Decode 77 101 109 111 114 121", a: "Memory" }, 
+    { q: "ASCII value of word 'Mobile App' is:", options: ["77 111 97 105 108 101 32 65 112 112", "75 111 98 105 106 101 32 65 112 112", "79 111 98 105 101 108 32 65 112 112", "77 111 98 105 108 101 32 65 112 112"], a: "77 111 98 105 108 101 32 65 112 112" }, 
+    { q: "Decode 87 101 98 32 80 97 103 101", options: ["API Call", "Web Page", "GPU Card", "DNS Host"], a: "Web Page" },   
+  ] 
+};
+
+// ======== VARIABLES ==========
+let currentRound = "easy";
+let index = 0, score = 0, timer, timeLeft = 0;
+let player = {}; // store player details
+let answers = []; // store user answers
+let roundStartTime = 0;
+
+// ======== TIMER ==========
+function startTimer(duration) {
+  timeLeft = duration;
+  roundStartTime = Date.now();              // <-- record start time (ms)
+  const display = document.getElementById("time");
+  timer = setInterval(() => {
+    const mins = Math.floor(timeLeft / 60);
+    const secs = timeLeft % 60;
+    display.textContent = `${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+    if (timeLeft-- <= 0) {
+      clearInterval(timer);
+      endRound();
+    }
+  }, 1000);
+}
+
+// ======== START ==========
+function startChallenge() {
+  const name = document.getElementById("username").value.trim();
+  const phone = document.getElementById("phone").value.trim();
+  const semester = document.getElementById("semester").value;
+  const className = document.getElementById("class").value.trim();
+
+  if (!name || !phone || !semester || !className) {
+    alert("Please fill all details before starting!");
+    return;
+  }
+  if (!/^[0-9]{10}$/.test(phone)) {
+    alert("Please enter a valid 10-digit phone number!");
+    return;
+  }
+
+  player = { name, phone, semester, className };
+  document.getElementById("start-screen").classList.add("hidden");
+  document.getElementById("quiz-screen").classList.remove("hidden");
+  startRound("easy");
+}
+
+// ======== ROUND START ==========
+function startRound(round) {
+  currentRound = round;
+  index = 0; 
+  score = 0;
+  answers = [];
+  document.getElementById("round-title").innerText = `Round: ${round.toUpperCase()}`;
+
+  // ⏱ Updated time durations per round
+  const roundTime =
+    round === "easy" ? 480 :   // 10 mins
+    round === "medium" ? 480 : // 10 mins (updated)
+    480;                       // 8 mins (updated)
+
+  startTimer(roundTime);
+  showQuestion();
+}
+
+
+// ======== SHOW QUESTION ==========
+function showQuestion() {
+  const qBox = document.getElementById("question-box");
+  const q = questions[currentRound][index];
+  let html = `<div class='question'><b>${index + 1}. ${q.q}</b><br>`;
+
+  if (q.options) {
+    q.options.forEach(opt => {
+      const isSelected = answers[index] === opt ? "style='background:#66fcf1;color:black;'" : "";
+      html += `<button class='option-btn' ${isSelected} onclick="selectOption('${opt}'); showQuestion();">${opt}</button>`;
+    });
+  } else {
+    const prevAns = answers[index] || "";
+    // escape quotes when inserting value
+    const safeVal = prevAns.replace(/'/g, "&#39;").replace(/"/g, "&quot;");
+    html += `<input id='answer' placeholder='Your answer' value='${safeVal}'><br><small style="color:#ff7777;">(Case-sensitive answer)</small>`;
+  }
+
+  html += `</div>`;
+  qBox.innerHTML = html;
+
+  // update Next button text & prev button state
+  document.getElementById("next-btn").innerText = (index === questions[currentRound].length - 1) ? "Finish" : "Next";
+  document.getElementById("prev-btn").disabled = (index === 0);
+}
+
+// ======== SELECT OPTION ==========
+function selectOption(selected) {
+  answers[index] = selected;
+  // no scoring here; scoring done on endRound()
+}
+
+// ======== NAVIGATION ==========
+function nextQuestion() {
+  const q = questions[currentRound][index];
+  if (!q.options) {
+    const ans = document.getElementById('answer').value.trim();
+    answers[index] = ans;
+  }
+
+  if (index < questions[currentRound].length - 1) {
+    index++;
+    showQuestion();
+  } else {
+    endRound();
+  }
+}
+
+function prevQuestion() {
+  if (index > 0) {
+    // save typed answer before leaving
+    const q = questions[currentRound][index];
+    if (!q.options) {
+      const ans = document.getElementById('answer').value.trim();
+      answers[index] = ans;
+    }
+    index--;
+    showQuestion();
+  }
+}
+
+// ======== END ROUND ==========
+async function endRound() {
+  clearInterval(timer);
+
+  // compute timeTaken for this round in seconds
+  const roundEnd = Date.now();
+  const timeTaken = Math.max(0, Math.floor((roundEnd - roundStartTime) / 1000));
+
+  // calculate score from saved answers
+  score = 0;
+  const totalQ = questions[currentRound].length;
+  for (let i = 0; i < totalQ; i++) {
+    if (answers[i] !== undefined && String(answers[i]).trim() === String(questions[currentRound][i].a).trim()) {
+      score++;
+    }
+  }
+
+  document.getElementById("quiz-screen").classList.add("hidden");
+  const res = document.getElementById("result-screen");
+  res.classList.remove("hidden");
+
+  const percent = (score / totalQ) * 100;
+  const pass = percent >= 50;
+  const msg = pass
+    ? `🎉 You scored ${score}/${totalQ} (${percent.toFixed(0)}%). Moving to next round...`
+    : `❌ You scored ${score}/${totalQ} (${percent.toFixed(0)}%). You did not qualify.`;
+
+  document.getElementById("result-title").innerText = `Round ${currentRound.toUpperCase()} Completed`;
+  document.getElementById("result-msg").innerText = msg;
+
+  // Save locally
+  saveResult(player, currentRound, score, percent, timeTaken);
+
+  // Save to Firebase Realtime Database (if available)
+  if (window.saveResultToFirebase) {
+    try {
+      await window.saveResultToFirebase({
+        name: player.name,
+        phone: player.phone,
+        semester: player.semester,
+        className: player.className,
+        round: currentRound,
+        score,
+        percent,
+        timeTaken,
+        timestamp: new Date().toISOString()
+      });
+    } catch (e) {
+      console.warn("Firebase save failed (you can still use local storage):", e);
+    }
+  }
+
+  if (pass) {
+    if (currentRound === "easy") setTimeout(() => { res.classList.add("hidden"); document.getElementById("quiz-screen").classList.remove("hidden"); startRound("medium"); }, 3000);
+    else if (currentRound === "medium") setTimeout(() => { res.classList.add("hidden"); document.getElementById("quiz-screen").classList.remove("hidden"); startRound("hard"); }, 3000);
+    else {
+      document.getElementById("result-title").innerText = "🏆 Congratulations!";
+      document.getElementById("result-msg").innerText = "You successfully completed all rounds!";
+    }
+  }
+}
+
+// ======== SAVE RESULTS LOCALLY ==========
+// ======== SAVE RESULTS TO FIREBASE ==========
+function saveResult(player, round, score, percent) {
+  const resultData = {
+    name: player.name,
+    phone: player.phone,
+    semester: player.semester,
+    className: player.className,
+    round,
+    score,
+    percent,
+    time: new Date().toLocaleString()
+  };
+
+  // ✅ Save locally (optional)
+  const results = JSON.parse(localStorage.getItem("cipherResults") || "[]");
+  results.push(resultData);
+  localStorage.setItem("cipherResults", JSON.stringify(results));
+
+  // ✅ Upload to Firebase
+}
+
+</script>
+</body>
+</html>

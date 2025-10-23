@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Admin Leaderboard — Cipher Sprint</title>
+  <style>
+    body {
+      background: #0b0c10;
+      color: #c5c6c7;
+      font-family: 'Poppins', sans-serif;
+      text-align: center;
+      padding: 20px;
+    }
+    .container {
+      max-width: 900px;
+      margin: auto;
+      background: #1f2833;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px #45a29e;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      font-size: 14px;
+    }
+    th, td {
+      border: 1px solid #66fcf1;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #45a29e;
+      color: black;
+    }
+    button {
+      background: #45a29e;
+      color: black;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #66fcf1;
+    }
+    #leaderboard-container {
+      display: none;
+    }
+    #admin-login {
+      margin-top: 120px;
+    }
+  </style>
+</head>
+<body>
+  <!-- ✅ Admin Login Section -->
+  <div id="admin-login">
+    <h2>Admin Access</h2>
+    <input type="password" id="adminPass" placeholder="Enter admin password">
+    <button onclick="checkAdmin()">Login</button>
+    <p id="login-msg" style="color:red;"></p>
+  </div>
+
+  <!-- ✅ Leaderboard Section -->
+  <div id="leaderboard-container" class="container">
+    <h1>Leaderboard</h1>
+    <button id="reloadBtn" onclick="loadLeaderboard()">Reload Leaderboard</button>
+    <div id="leaderboard"></div>
+  </div>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+    import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js";
+
+    // ✅ Firebase Config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDZ_5BVetEuf6HmsdvFEmK5jUiiN9qalq0",
+      authDomain: "cipher-sprint.firebaseapp.com",
+      databaseURL: "https://cipher-sprint-default-rtdb.firebaseio.com",
+      projectId: "cipher-sprint",
+      storageBucket: "cipher-sprint.firebasestorage.app",
+      messagingSenderId: "191536837355",
+      appId: "1:191536837355:web:aa8fad31558205826804ae",
+      measurementId: "G-N85P9F1YR2"
+    };
+
+    const app = initializeApp(firebaseConfig);
+    const db = getDatabase(app);
+
+    // ✅ Admin Login
+    window.checkAdmin = function () {
+      const pass = document.getElementById("adminPass").value.trim();
+      const msg = document.getElementById("login-msg");
+
+      if (pass === "cipher@admin") {
+        document.getElementById("admin-login").style.display = "none";
+        document.getElementById("leaderboard-container").style.display = "block";
+        loadLeaderboard();
+      } else {
+        msg.textContent = "Incorrect password. Access denied.";
+      }
+    };
+
+    // ✅ Load leaderboard (using get() to always fetch full data)
+    async function loadLeaderboard() {
+      const leaderboardDiv = document.getElementById("leaderboard");
+      leaderboardDiv.innerHTML = "<p style='color:#66fcf1;'>Loading...</p>";
+
+      try {
+        const snapshot = await get(ref(db, "results"));
+        const data = snapshot.val();
+        buildLeaderboard(data);
+      } catch (error) {
+        leaderboardDiv.innerHTML = `<p style='color:red;'>Error loading data: ${error}</p>`;
+      }
+    }
+
+    // ✅ Build Leaderboard
+    function buildLeaderboard(data) {
+      if (!data) {
+        document.getElementById("leaderboard").innerText = "No results yet.";
+        return;
+      }
+
+      const byPhone = {};
+      Object.values(data).forEach(entry => {
+        const phone = entry.phone || ("noPhone_" + Math.random());
+        if (!byPhone[phone]) {
+          byPhone[phone] = {
+            name: entry.name || "Unknown",
+            phone: entry.phone || "-",
+            totalScore: 0,
+            totalTime: 0,
+            entries: []
+          };
+        }
+        byPhone[phone].totalScore += Number(entry.score || 0);
+        byPhone[phone].totalTime += Number(entry.timeTaken || 0);
+        byPhone[phone].entries.push(entry);
+      });
+
+      Object.values(byPhone).forEach(p => {
+        const roundsPlayed = p.entries.map(e => e.round?.toLowerCase());
+        p.qualifiedAll = ['easy', 'medium', 'hard'].every(r => roundsPlayed.includes(r));
+      });
+
+      let arr = Object.values(byPhone);
+
+      // Sort by score then time
+      arr.sort((a, b) => {
+        if (b.totalScore !== a.totalScore) return b.totalScore - a.totalScore;
+        return a.totalTime - b.totalTime;
+      });
+
+      // ✅ Winner Selection Logic
+      let winner = null;
+      const qualified = arr.filter(p => p.qualifiedAll);
+      if (qualified.length > 0) {
+        winner = qualified[0];
+        winner.reason = "Completed all rounds with best score/time";
+      } else {
+        const topScore = arr[0].totalScore;
+        const topCandidates = arr.filter(p => p.totalScore === topScore);
+        if (topCandidates.length === 1) {
+          winner = topCandidates[0];
+          winner.reason = "Highest score overall (no full completion)";
+        } else {
+          topCandidates.sort((a, b) => a.totalTime - b.totalTime);
+          winner = topCandidates[0];
+          winner.reason = "Tie-breaker by lowest total time";
+        }
+      }
+
+      // ✅ Table HTML
+      let html = `
+      <table>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Total Score</th>
+          <th>Total Time (s)</th>
+          <th>Round Breakdown</th>
+        </tr>
+      `;
+
+      arr.forEach((p, idx) => {
+        const easy = p.entries.find(e => e.round?.toLowerCase() === 'easy');
+        const medium = p.entries.find(e => e.round?.toLowerCase() === 'medium');
+        const hard = p.entries.find(e => e.round?.toLowerCase() === 'hard');
+
+        const detail = `
+          Easy: ${easy ? easy.score : '-'} (${easy ? easy.timeTaken : '-'}s)<br>
+          Medium: ${medium ? medium.score : '-'} (${medium ? medium.timeTaken : '-'}s)<br>
+          Hard: ${hard ? hard.score : '-'} (${hard ? hard.timeTaken : '-'}s)
+        `;
+
+        html += `
+          <tr style="background-color:${idx % 2 === 0 ? '#0b0c10' : '#1f2833'}; color:white;">
+            <td>${idx + 1}</td>
+            <td>${escapeHtml(p.name)}</td>
+            <td>${escapeHtml(p.phone)}</td>
+            <td>${p.totalScore}</td>
+            <td>${p.totalTime}</td>
+            <td>${detail}</td>
+          </tr>
+        `;
+      });
+
+      html += `</table>`;
+
+      // ✅ Winner Box
+      if (winner) {
+        html += `
+          <div style="margin-top:20px; padding:15px; background-color:#0b0c10; color:#66fcf1; border-radius:10px;">
+            <h2 style="color:#ffd700;">🏆 WINNER: ${escapeHtml(winner.name)}</h2>
+            <p><b>Phone:</b> ${escapeHtml(winner.phone)}</p>
+            <p><b>Total Score:</b> ${winner.totalScore} | <b>Total Time:</b> ${winner.totalTime}s</p>
+            <p><b>Reason:</b> ${winner.reason}</p>
+          </div>
+        `;
+      }
+
+      document.getElementById("leaderboard").innerHTML = html;
+    }
+
+    // ✅ Escape HTML
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+    }
+  </script>
+</body>
+</html>

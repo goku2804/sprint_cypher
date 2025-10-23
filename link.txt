@@ -1,0 +1,11 @@
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
+const firebaseConfig = {
+  apiKey: "AIzaSyDZ_5BVetEuf6HmsdvFEmK5jUiiN9qalq0",
+  authDomain: "cipher-sprint.firebaseapp.com",
+  databaseURL: "https://console.firebase.google.com/project/cipher-sprint/database/cipher-sprint-default-rtdb/data/~2F",
+  projectId: "cipher-sprint",
+  storageBucket: "cipher-sprint.firebasestorage.app",
+  messagingSenderId: "191536837355",
+  appId: "1:191536837355:web:aa8fad31558205826804ae",
+  measurementId: "G-N85P9F1YR2"
+};
